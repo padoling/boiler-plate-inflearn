@@ -6,11 +6,13 @@ const cookieParser = require('cookie-parser')
 
 const config = require('./config/key')
 const { User } = require('./models/User')
+const { auth } = require('./middleware/auth')
 
 // application/x-www-form-urlencoded 데이터를 파싱
 app.use(bodyParser.urlencoded({extended: true}));
 // application/json 데이터를 파싱
 app.use(bodyParser.json());
+// cookie에 정보 저장하기 위한 라이브러리
 app.use(cookieParser());
 
 // mongoose로 mongoDB에 연결
@@ -29,9 +31,8 @@ app.get('/', (req, res) => {
 })
 
 // 회원가입 엔드포인트
-app.post('/register', (req, res) => {
+app.post('/api/users/register', (req, res) => {
     const user = new User(req.body)
-
     user.save((err, userInfo) => {
         if(err) {
             return res.json({ success: false, err })
@@ -42,7 +43,8 @@ app.post('/register', (req, res) => {
     })
 })
 
-app.post('/login', (req, res) => {
+// 로그인 엔드포인트
+app.post('/api/users/login', (req, res) => {
     // 요청된 이메일을 db에서 조회
     User.findOne({ email: req.body.email }, (err, user) => {
         if(!user) {
@@ -70,6 +72,33 @@ app.post('/login', (req, res) => {
         })
     })
 })
+
+// 인증 엔드포인트
+app.get('/api/users/auth', auth, (req, res) => {
+    // 여기까지 미들웨어를 통과해왔다는 얘기는 auth가 true라는 의미
+    res.status(200).json({
+        _id: req.user._id,
+        isAdmin: req.user.role === 0 ? false : true,
+        isAuth: true,
+        email: req.user.email,
+        name: req.user.name,
+        lastname: req.user.lastname,
+        role: req.user.role,
+        image: req.user.image
+    })
+})
+
+app.get('/api/users/logout', auth, (req, res) => {
+    User.findByIdAndUpdate({ _id: req.user._id }, 
+        { token: "" }, 
+        (err, user) => {
+            if(err) return res.json({ success: false, err });
+            return res.status(200).send({
+                success: true
+            })
+    })
+})
+
 
 // 해당 port의 연결을 listen하면 콜백함수를 리턴함
 app.listen(port, () => {
